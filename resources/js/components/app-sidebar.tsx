@@ -75,6 +75,27 @@ export function AppSidebar() {
         );
     }
 
+    // Add guru-only menu items
+    if (userRole === UserRole.GURU) {
+        mainNavItems.push(
+            {
+                title: 'Kelas Saya',
+                href: guruRoutes.kelas.index.url(),
+                icon: School,
+            },
+            {
+                title: 'Kurikulum',
+                href: guruRoutes.kurikulum.index.url(),
+                icon: BookOpen,
+            },
+            {
+                title: 'Penilaian',
+                href: guruRoutes.nilai.list.url(),
+                icon: ClipboardList,
+            }
+        );
+    }
+
     return (
         <Sidebar collapsible="icon" variant="floating">
             <SidebarHeader>

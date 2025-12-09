@@ -12,8 +12,9 @@ use Inertia\Inertia;
 
 class DashboardController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
+        // Dashboard admin only
         $jumlahSiswa = Siswa::count();
         $jumlahGuru = Guru::count();
         $jumlahKelas = Kelas::count();

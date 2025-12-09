@@ -32,11 +32,11 @@ class Kelas extends Model
     }
     
     /**
-     * Accessor untuk mendapatkan nama lengkap kelas (contoh: "1A", "2B")
+     * Accessor untuk mendapatkan nama lengkap kelas (contoh: "1 - Darehdeh", "2 - Beutong")
      */
     public function getNamaLengkapAttribute(): string
     {
-        return $this->tingkat . $this->nama;
+        return $this->tingkat . ' - ' . $this->nama;
     }
     
     /**

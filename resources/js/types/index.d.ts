@@ -219,3 +219,38 @@ export interface PaginatedData<T> {
         active: boolean;
     }[];
 }
+
+export interface PenugasanMengajar {
+    id: number;
+    guru_id: number;
+    mata_pelajaran_id: number;
+    kelas_id: number;
+    tahun_ajaran_id: number;
+    tipe_penugasan: 'bidang_studi' | 'wali_kelas';
+    keterangan?: string;
+    created_at: string;
+    updated_at: string;
+    guru?: Guru;
+    mata_pelajaran?: MataPelajaran;
+    kelas?: Kelas;
+    tahun_ajaran?: TahunAjaran;
+}
+
+export interface Nilai {
+    id: number;
+    siswa_id: number;
+    tujuan_pembelajaran_id: number;
+    kelas_id: number;
+    semester_id: number;
+    guru_id: number;
+    nilai: number;
+    catatan?: string;
+    recorded_at: string;
+    created_at: string;
+    updated_at: string;
+    siswa?: Siswa;
+    tujuan_pembelajaran?: TujuanPembelajaran;
+    kelas?: Kelas;
+    semester?: Semester;
+    guru?: Guru;
+}

@@ -8,11 +8,20 @@ Route::get('/', function () {
 })->name('home');
 
 Route::middleware(['auth', 'verified'])->group(function () {
-    Route::get('dashboard', [\App\Http\Controllers\DashboardController::class, 'index'])->name('dashboard');
+    Route::get('dashboard', function (\Illuminate\Http\Request $request) {
+        // Redirect based on role
+        if ($request->user()->isGuru()) {
+            return redirect()->route('guru.dashboard');
+        }
+        
+        // Admin dashboard
+        return app(\App\Http\Controllers\DashboardController::class)->index($request);
+    })->name('dashboard');
 });
 
 // Load feature-specific routes
 require __DIR__.'/settings.php';
+require __DIR__.'/guru-dashboard.php';  // Load guru dashboard BEFORE guru resource
 require __DIR__.'/siswa.php';
 require __DIR__.'/guru.php';
 require __DIR__.'/tahun-ajaran.php';
