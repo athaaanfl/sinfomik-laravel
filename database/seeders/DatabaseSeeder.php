@@ -18,21 +18,12 @@ class DatabaseSeeder extends Seeder
         // User::factory(10)->create();
 
         User::firstOrCreate(
-            ['email' => 'atha@binekas.sch.id'],
+            ['email' => 'admin@example.com'],
             [
-                'name' => 'Muhammad Naufal Atha Al Khairi',
-                'password' => bcrypt('admin123'),
+                'name' => 'Administrator',
+                'password' => bcrypt('password'),
                 'email_verified_at' => now(),
                 'role' => UserRole::ADMIN,
-            ]
-        );
-        $guruUser = User::updateOrCreate(
-            ['email' => 'guntur@binekas.sch.id'],
-            [
-                'name' => 'Raihan Guntur Ramadhan',
-                'password' => bcrypt('guruu123'),
-                'email_verified_at' => now(),
-                'role' => UserRole::GURU,
             ]
         );
 
