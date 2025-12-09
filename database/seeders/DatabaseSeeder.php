@@ -27,11 +27,6 @@ class DatabaseSeeder extends Seeder
             ]
         );
 
-        // Create guru record for the guru user
-        Guru::firstOrCreate(
-            ['user_id' => $guruUser->id],
-        );
-
         // Seed Tahun Ajaran, Semester, dan Kelas
         $this->call([
             KelasMasterSeeder::class,
