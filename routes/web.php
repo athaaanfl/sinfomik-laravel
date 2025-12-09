@@ -27,3 +27,5 @@ require __DIR__.'/guru.php';
 require __DIR__.'/tahun-ajaran.php';
 require __DIR__.'/mata-pelajaran.php';
 require __DIR__.'/kelas.php';
+require __DIR__.'/akademik.php';  // Kelulusan & Naik Kelas
+require __DIR__.'/penugasan-mengajar.php';

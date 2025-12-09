@@ -17,10 +17,12 @@ import tahunAjaranRoutes from '@/routes/tahun-ajaran';
 import mataPelajaranRoutes from '@/routes/mata-pelajaran';
 import kelasRoutes from '@/routes/kelas';
 import penugasanMengajarRoutes from '@/routes/penugasan-mengajar';
-import { type NavItem } from '@/types';
+import kelulusanSiswaRoutes from '@/routes/kelulusan-siswa';
+import naikKelasRoutes from '@/routes/naik-kelas';
+import { type NavItem, type NavGroup } from '@/types';
 import { UserRole } from '@/types/enums';
 import { Link, usePage } from '@inertiajs/react';
-import { BookOpen, BookOpenCheck, Calendar, ClipboardList, Folder, GraduationCap, LayoutGrid, School, Settings, User, UsersRound } from 'lucide-react';
+import { BookOpen, BookOpenCheck, Calendar, ClipboardList, Folder, GraduationCap, LayoutGrid, School, Settings, User, UsersRound, ArrowUpCircle } from 'lucide-react';
 import AppLogo from './app-logo';
 
 const footerNavItems: NavItem[] = [
@@ -38,6 +40,8 @@ export function AppSidebar() {
             icon: LayoutGrid,
         },
     ];
+
+    const navGroups: NavGroup[] = [];
 
     // Add admin-only menu items
     if (userRole === UserRole.ADMIN) {
@@ -73,6 +77,23 @@ export function AppSidebar() {
                 icon: ClipboardList,
             }
         );
+
+        // Add Manajemen Akademik group
+        navGroups.push({
+            title: 'Manajemen Akademik',
+            items: [
+                {
+                    title: 'Kelulusan Siswa',
+                    href: kelulusanSiswaRoutes.index(),
+                    icon: GraduationCap,
+                },
+                {
+                    title: 'Naik Kelas Massal',
+                    href: naikKelasRoutes.index(),
+                    icon: ArrowUpCircle,
+                },
+            ],
+        });
     }
 
     // Add guru-only menu items
@@ -112,6 +133,9 @@ export function AppSidebar() {
 
             <SidebarContent>
                 <NavMain items={mainNavItems} />
+                {navGroups.map((group) => (
+                    <NavMain key={group.title} items={group.items} groupLabel={group.title} />
+                ))}
             </SidebarContent>
 
             <SidebarFooter>

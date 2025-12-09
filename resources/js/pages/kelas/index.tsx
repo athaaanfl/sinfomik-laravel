@@ -22,7 +22,7 @@ import AppLayout from '@/layouts/app-layout';
 import kelasRoutes from '@/routes/kelas';
 import { type BreadcrumbItem, type TahunAjaran, type Kelas, type Guru } from '@/types';
 import { Head, router, usePage } from '@inertiajs/react';
-import { Plus, Users, UserCheck, School, Trash2 } from 'lucide-react';
+import { Plus, Users, UserCheck, School, Trash2, Sparkles } from 'lucide-react';
 import * as React from 'react';
 import { toast } from 'sonner';
 
@@ -55,6 +55,7 @@ export default function Index({
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
     const [kelasToDelete, setKelasToDelete] = React.useState<Kelas | null>(null);
     const [isUpdating, setIsUpdating] = React.useState(false);
+    const [isGenerating, setIsGenerating] = React.useState(false);
 
     const page = usePage();
     const prevFlashRef = React.useRef({ success: '', error: '', info: '' });
@@ -165,6 +166,20 @@ export default function Index({
         );
     };
 
+    const handleGenerateFromMaster = () => {
+        setIsGenerating(true);
+        router.post(
+            '/kelas/generate-from-master',
+            { tahun_ajaran_id: selectedTahunAjaranId },
+            {
+                preserveState: false,
+                onFinish: () => {
+                    setIsGenerating(false);
+                },
+            }
+        );
+    };
+
     const selectedTahunAjaran = tahunAjarans.find((ta) => ta.id === selectedTahunAjaranId);
 
     return (
@@ -217,13 +232,27 @@ export default function Index({
                         <CardContent className="py-12 text-center">
                             <School className="size-12 mx-auto mb-4 text-muted-foreground" />
                             <h3 className="text-lg font-semibold mb-2">Belum Ada Kelas</h3>
-                            <p className="text-sm text-muted-foreground mb-4">
-                                Tahun ajaran ini belum memiliki kelas. Tambah kelas terlebih dahulu.
+                            <p className="text-sm text-muted-foreground mb-6">
+                                Tahun ajaran ini belum memiliki kelas. Generate otomatis dari Kelas Master atau tambah manual.
                             </p>
-                            <Button onClick={() => setIsCreateDialogOpen(true)}>
-                                <Plus className="mr-2 size-4" />
-                                Tambah Kelas Sekarang
-                            </Button>
+                            <div className="flex gap-3 justify-center">
+                                <Button 
+                                    size="lg" 
+                                    onClick={handleGenerateFromMaster}
+                                    disabled={isGenerating}
+                                >
+                                    <Sparkles className="mr-2 size-4" />
+                                    {isGenerating ? 'Generating...' : 'Generate dari Kelas Master'}
+                                </Button>
+                                <Button 
+                                    variant="outline" 
+                                    size="lg" 
+                                    onClick={() => setIsCreateDialogOpen(true)}
+                                >
+                                    <Plus className="mr-2 size-4" />
+                                    Tambah Manual
+                                </Button>
+                            </div>
                         </CardContent>
                     </Card>
                 ) : (

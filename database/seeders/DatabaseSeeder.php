@@ -33,7 +33,7 @@ class DatabaseSeeder extends Seeder
             TahunAjaranSemesterKelasSeeder::class,
             MataPelajaranSeeder::class,
             KurikulumCompleteSeeder::class, // Seed kurikulum lengkap
-            GuruSeeder::class,
+            // GuruSeeder::class,
             SiswaSeeder::class,
         ]);
     }

@@ -18,6 +18,8 @@ class Siswa extends Model
         'nis',
         'nisn',
         'tahun_masuk',
+        'tahun_lulus',
+        'tanggal_lulus',
         'status',
         'gender',
         'tanggal_lahir',
@@ -29,6 +31,12 @@ class Siswa extends Model
         'nama_ibu',
         'nomor_telepon_wali',
     ];
+    
+    protected $casts = [
+        'tanggal_lahir' => 'date',
+        'tanggal_lulus' => 'date',
+    ];
+    
     public $timestamps = true;
     
     /**

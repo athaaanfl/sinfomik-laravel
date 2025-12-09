@@ -3,10 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\Kelas;
+use App\Models\KelasMaster;
 use App\Models\Siswa;
 use App\Models\Guru;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -88,8 +90,17 @@ class KelasController extends Controller
             }
         ]);
         
+        // Get siswa yang sudah terdaftar di kelas aktif (end_date = null) pada tahun ajaran yang sama
+        $siswaIdsInCurrentTahunAjaran = DB::table('kelas_siswa')
+            ->join('kelas', 'kelas_siswa.kelas_id', '=', 'kelas.id')
+            ->where('kelas.tahun_ajaran_id', $kelas->tahun_ajaran_id)
+            ->whereNull('kelas_siswa.end_date') // Hanya yang masih aktif
+            ->pluck('kelas_siswa.siswa_id')
+            ->toArray();
+        
+        // Available siswa: status Aktif dan belum terdaftar di kelas manapun dalam tahun ajaran ini
         $availableSiswas = Siswa::where('status', 'Aktif')
-            ->whereNotIn('id', $kelas->siswas->pluck('id'))
+            ->whereNotIn('id', $siswaIdsInCurrentTahunAjaran)
             ->orderBy('nama_lengkap')
             ->get(['id', 'nis', 'nama_lengkap as nama']);
         
@@ -252,28 +263,41 @@ class KelasController extends Controller
 
         $today = now()->format('Y-m-d');
         
-        // Get current siswa IDs in this class
-        $existingSiswaIds = $kelas->siswas()->pluck('siswa_id')->toArray();
+        // Get siswa yang sudah terdaftar di kelas aktif dalam tahun ajaran yang sama
+        $siswaIdsInCurrentTahunAjaran = DB::table('kelas_siswa')
+            ->join('kelas', 'kelas_siswa.kelas_id', '=', 'kelas.id')
+            ->where('kelas.tahun_ajaran_id', $kelas->tahun_ajaran_id)
+            ->whereNull('kelas_siswa.end_date') // Hanya yang masih aktif
+            ->pluck('kelas_siswa.siswa_id')
+            ->toArray();
         
         $addedCount = 0;
+        $skippedCount = 0;
+        
         foreach ($validated['siswa_ids'] as $siswaId) {
-            // Only attach if not already in class
-            if (!in_array($siswaId, $existingSiswaIds)) {
-                $kelas->siswas()->attach($siswaId, [
-                    'start_date' => $today,
-                    'end_date' => null,
-                ]);
-                $addedCount++;
+            // Skip jika siswa sudah terdaftar di kelas manapun dalam tahun ajaran ini
+            if (in_array($siswaId, $siswaIdsInCurrentTahunAjaran)) {
+                $skippedCount++;
+                continue;
             }
+            
+            $kelas->siswas()->attach($siswaId, [
+                'start_date' => $today,
+                'end_date' => null,
+            ]);
+            $addedCount++;
         }
 
-        if ($addedCount > 0) {
+        if ($addedCount > 0 && $skippedCount > 0) {
+            return redirect()->route('kelas.show', $kelas)
+                ->with('success', $addedCount . ' siswa berhasil ditambahkan. ' . $skippedCount . ' siswa dilewati karena sudah terdaftar di kelas lain.');
+        } elseif ($addedCount > 0) {
             return redirect()->route('kelas.show', $kelas)
                 ->with('success', $addedCount . ' siswa berhasil ditambahkan ke kelas.');
         }
         
         return redirect()->route('kelas.show', $kelas)
-            ->with('info', 'Tidak ada siswa baru yang ditambahkan. Siswa sudah terdaftar di kelas.');
+            ->with('info', 'Tidak ada siswa yang ditambahkan. Semua siswa sudah terdaftar di kelas dalam tahun ajaran ini.');
     }
 
     /**
@@ -296,5 +320,63 @@ class KelasController extends Controller
         return redirect()->back()->with('success', 
             "Siswa {$siswa->nama_lengkap} berhasil dihapus dari kelas."
         );
+    }
+
+    /**
+     * Generate kelas for a tahun ajaran from kelas_master.
+     */
+    public function generateFromMaster(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'tahun_ajaran_id' => 'required|exists:tahun_ajarans,id',
+        ]);
+
+        $tahunAjaranId = $validated['tahun_ajaran_id'];
+
+        // Get all kelas_master
+        $kelasMasters = KelasMaster::all();
+
+        if ($kelasMasters->isEmpty()) {
+            return redirect()->back()->with('error', 'Tidak ada kelas master yang tersedia. Tambahkan kelas master terlebih dahulu.');
+        }
+
+        // Get existing kelas for this tahun ajaran
+        $existingKelas = Kelas::where('tahun_ajaran_id', $tahunAjaranId)
+            ->get(['nama', 'tingkat'])
+            ->map(fn($k) => $k->tingkat . '-' . $k->nama)
+            ->toArray();
+
+        $createdCount = 0;
+        $skippedCount = 0;
+
+        foreach ($kelasMasters as $master) {
+            $key = $master->tingkat . '-' . $master->nama;
+
+            // Skip if already exists
+            if (in_array($key, $existingKelas)) {
+                $skippedCount++;
+                continue;
+            }
+
+            // Create new kelas
+            Kelas::create([
+                'tahun_ajaran_id' => $tahunAjaranId,
+                'nama' => $master->nama,
+                'tingkat' => $master->tingkat,
+                'homeroom_teacher_id' => null,
+            ]);
+
+            $createdCount++;
+        }
+
+        if ($createdCount > 0) {
+            $message = "{$createdCount} kelas berhasil digenerate dari kelas master.";
+            if ($skippedCount > 0) {
+                $message .= " ({$skippedCount} kelas sudah ada dan dilewati)";
+            }
+            return redirect()->back()->with('success', $message);
+        }
+
+        return redirect()->back()->with('info', 'Semua kelas dari kelas master sudah ada untuk tahun ajaran ini.');
     }
 }
