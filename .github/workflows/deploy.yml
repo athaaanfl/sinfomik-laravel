@@ -1,0 +1,220 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  deploy:
+    name: Build and Deploy
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 🔍 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, xml, bcmath, mysql, zip, curl
+          coverage: none
+
+      - name: 📦 Get Composer Cache Directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+
+      - name: 🗂️ Cache Composer dependencies
+        uses: actions/cache@v3
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: ${{ runner.os }}-composer-
+
+      - name: 📥 Install Composer dependencies
+        run: composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
+
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: 📥 Install NPM dependencies
+        run: npm ci
+
+      - name: 🏗️ Build frontend assets
+        run: npm run build
+
+      - name: 📝 Create deployment artifact
+        run: |
+          mkdir -p artifact
+          tar -czf artifact/deployment.tar.gz \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='node_modules' \
+            --exclude='tests' \
+            --exclude='storage/logs/*' \
+            --exclude='storage/framework/cache/*' \
+            --exclude='storage/framework/sessions/*' \
+            --exclude='storage/framework/views/*' \
+            --exclude='.env' \
+            --exclude='.env.example' \
+            --exclude='phpunit.xml' \
+            .
+
+      - name: 🚀 Deploy to VPS via SSH
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT }}
+          script: |
+            # Set variables
+            APP_DIR="/var/www/sinfomik"
+            BACKUP_DIR="/var/backups/sinfomik"
+            TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+            
+            echo "🔄 Starting deployment..."
+            
+            # Create backup directory if not exists
+            mkdir -p $BACKUP_DIR
+            
+            # Backup current .env
+            if [ -f "$APP_DIR/.env" ]; then
+              echo "💾 Backing up .env file..."
+              cp $APP_DIR/.env $BACKUP_DIR/.env.$TIMESTAMP
+            fi
+            
+            # Backup database
+            echo "💾 Backing up database..."
+            mysqldump -u root sinfomik > $BACKUP_DIR/database_$TIMESTAMP.sql || echo "⚠️ Database backup failed"
+            
+            # Create deployment directory
+            mkdir -p $APP_DIR
+            
+            echo "✅ Deployment preparation complete"
+
+      - name: 📤 Upload artifact to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT }}
+          source: "artifact/deployment.tar.gz"
+          target: "/tmp/"
+
+      - name: 🔧 Extract and Configure on VPS
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT }}
+          script: |
+            APP_DIR="/var/www/sinfomik"
+            BACKUP_DIR="/var/backups/sinfomik"
+            TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+            
+            echo "📦 Extracting deployment artifact..."
+            cd $APP_DIR
+            tar -xzf /tmp/artifact/deployment.tar.gz
+            rm /tmp/artifact/deployment.tar.gz
+            
+            # Restore .env from backup
+            if [ -f "$BACKUP_DIR/.env.$TIMESTAMP" ]; then
+              echo "🔑 Restoring .env file..."
+              cp $BACKUP_DIR/.env.$TIMESTAMP $APP_DIR/.env
+            fi
+            
+            # Create storage directories if not exist
+            echo "📁 Setting up storage directories..."
+            mkdir -p storage/framework/{cache,sessions,views}
+            mkdir -p storage/logs
+            mkdir -p bootstrap/cache
+            
+            # Set permissions
+            echo "🔐 Setting permissions..."
+            sudo chown -R www-data:www-data $APP_DIR
+            sudo chmod -R 755 $APP_DIR
+            sudo chmod -R 775 $APP_DIR/storage
+            sudo chmod -R 775 $APP_DIR/bootstrap/cache
+            
+            # Run migrations
+            echo "🗄️ Running database migrations..."
+            php artisan migrate --force
+            
+            # Clear and cache
+            echo "🧹 Clearing caches..."
+            php artisan config:clear
+            php artisan cache:clear
+            php artisan route:clear
+            php artisan view:clear
+            
+            echo "⚡ Optimizing application..."
+            php artisan config:cache
+            php artisan route:cache
+            php artisan view:cache
+            php artisan optimize
+            
+            # Create storage link
+            echo "🔗 Creating storage link..."
+            php artisan storage:link || echo "Storage link already exists"
+            
+            # Restart services
+            echo "♻️ Restarting services..."
+            sudo systemctl reload php8.2-fpm
+            sudo supervisorctl reread
+            sudo supervisorctl update
+            sudo supervisorctl restart sinfomik-queue:* || echo "Queue workers not configured yet"
+            
+            echo "✅ Deployment completed successfully!"
+            echo "🌐 Application is live"
+
+      - name: 🧪 Health Check
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT }}
+          script: |
+            APP_DIR="/var/www/sinfomik"
+            cd $APP_DIR
+            
+            echo "🏥 Running health checks..."
+            
+            # Check if application is responding
+            if curl -f -s -o /dev/null -w "%{http_code}" http://localhost > /dev/null; then
+              echo "✅ Application is responding"
+            else
+              echo "❌ Application health check failed"
+              exit 1
+            fi
+            
+            # Check disk space
+            echo "💾 Disk usage:"
+            df -h $APP_DIR | tail -1
+            
+            # Check recent logs
+            echo "📋 Recent application logs:"
+            tail -n 5 storage/logs/laravel.log || echo "No logs yet"
+
+      - name: 📢 Notify deployment status
+        if: always()
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT }}
+          script: |
+            if [ "${{ job.status }}" == "success" ]; then
+              echo "✅ Deployment successful at $(date)"
+            else
+              echo "❌ Deployment failed at $(date)"
+            fi
