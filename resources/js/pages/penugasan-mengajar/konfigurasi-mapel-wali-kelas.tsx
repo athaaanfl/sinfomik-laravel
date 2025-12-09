@@ -269,11 +269,6 @@ export default function KonfigurasiMapelWaliKelas({
                                                         <h3 className="text-base font-semibold">
                                                             {item.mata_pelajaran.nama}
                                                         </h3>
-                                                        {item.is_active ? (
-                                                            <Badge variant="default" className="text-xs">Aktif</Badge>
-                                                        ) : (
-                                                            <Badge variant="secondary" className="text-xs">Nonaktif</Badge>
-                                                        )}
                                                     </div>
                                                     <div className="flex items-center gap-2">
                                                         <span className="text-xs text-muted-foreground font-medium">

@@ -14,6 +14,7 @@ interface Siswa {
     id: number;
     nis: string;
     nama_lengkap: string;
+    nama_panggilan?: string;
 }
 
 interface TpPemetaan {
@@ -249,7 +250,15 @@ export default function GuruNilaiIndex({ penugasan, siswas, tpPemetaans, nilais 
                                                     <div className="p-2 bg-muted/50 rounded sticky left-0 flex items-center">
                                                         <div>
                                                             <p className="font-medium text-sm">{siswa.nama_lengkap}</p>
-                                                            <p className="text-xs text-muted-foreground">{siswa.nis}</p>
+                                                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                                                <span>{siswa.nis}</span>
+                                                                {siswa.nama_panggilan && (
+                                                                    <>
+                                                                        <span>•</span>
+                                                                        <span>{siswa.nama_panggilan}</span>
+                                                                    </>
+                                                                )}
+                                                            </div>
                                                         </div>
                                                     </div>
                                                     {tpPemetaans.map((tp) => {

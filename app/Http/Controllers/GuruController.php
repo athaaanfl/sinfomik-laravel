@@ -8,6 +8,7 @@ use App\Http\Requests\UpdateGuruRequest;
 use App\Models\Guru;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Inertia\Inertia;
@@ -16,12 +17,44 @@ use Inertia\Response;
 class GuruController extends Controller
 {
     // Display a listing of the resource.
-    public function index(): Response
+    public function index(Request $request): Response
     {
-        $gurus = Guru::with('user')->latest()->paginate(10);
+        $search = $request->input('search');
+
+        $gurus = Guru::query()
+            ->with(['user', 'kelasWali'])
+            ->withCount('kelasWali')
+            ->when($search, function ($query, $search) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('nip', 'like', "%{$search}%")
+                        ->orWhereHas('user', function ($userQuery) use ($search) {
+                            $userQuery->where('name', 'like', "%{$search}%")
+                                ->orWhere('email', 'like', "%{$search}%");
+                        });
+                });
+            })
+            ->latest()
+            ->paginate(10)
+            ->withQueryString()
+            ->through(function ($guru) {
+                return [
+                    'id' => $guru->id,
+                    'nip' => $guru->nip,
+                    'gender' => $guru->gender,
+                    'nomor_telepon' => $guru->nomor_telepon,
+                    'is_wali_kelas' => $guru->kelas_wali_count > 0,
+                    'user' => $guru->user ? [
+                        'name' => $guru->user->name,
+                        'email' => $guru->user->email,
+                    ] : null,
+                ];
+            });
 
         return Inertia::render('guru/index', [
             'gurus' => $gurus,
+            'filters' => [
+                'search' => $search,
+            ],
         ]);
     }
 
@@ -94,6 +127,18 @@ class GuruController extends Controller
     // Remove the specified resource from storage.
     public function destroy(Guru $guru): RedirectResponse
     {
+        // Check if guru has penugasan mengajar
+        if ($guru->penugasanMengajars()->exists()) {
+            return redirect()->route('guru.index')
+                ->with('error', 'Guru tidak dapat dihapus karena masih memiliki penugasan mengajar.');
+        }
+
+        // Check if guru is wali kelas
+        if ($guru->kelasWali()->exists()) {
+            return redirect()->route('guru.index')
+                ->with('error', 'Guru tidak dapat dihapus karena masih menjadi wali kelas.');
+        }
+
         DB::transaction(function () use ($guru) {
             $user = $guru->user;
             $guru->delete();
@@ -104,5 +149,51 @@ class GuruController extends Controller
 
         return redirect()->route('guru.index')
             ->with('success', 'Data guru berhasil dihapus.');
+    }
+
+    // Bulk delete gurus
+    public function bulkDestroy(Request $request): RedirectResponse
+    {
+        $ids = $request->input('ids', []);
+        
+        if (empty($ids)) {
+            return redirect()->route('guru.index')
+                ->with('error', 'Tidak ada guru yang dipilih.');
+        }
+
+        $gurus = Guru::whereIn('id', $ids)->with('user')->get();
+        $deleted = 0;
+        $errors = [];
+
+        foreach ($gurus as $guru) {
+            // Check if guru has penugasan mengajar
+            if ($guru->penugasanMengajars()->exists()) {
+                $errors[] = "{$guru->user->name} masih memiliki penugasan mengajar";
+                continue;
+            }
+
+            // Check if guru is wali kelas
+            if ($guru->kelasWali()->exists()) {
+                $errors[] = "{$guru->user->name} masih menjadi wali kelas";
+                continue;
+            }
+
+            DB::transaction(function () use ($guru) {
+                $user = $guru->user;
+                $guru->delete();
+                if ($user) {
+                    $user->delete();
+                }
+            });
+            $deleted++;
+        }
+
+        if (!empty($errors)) {
+            return redirect()->route('guru.index')
+                ->with('error', 'Beberapa guru tidak dapat dihapus: ' . implode(', ', $errors));
+        }
+
+        return redirect()->route('guru.index')
+            ->with('success', "{$deleted} guru berhasil dihapus.");
     }
 }

@@ -130,6 +130,7 @@ class GuruNilaiController extends Controller
                 'id' => $siswa->id,
                 'nis' => $siswa->nis,
                 'nama_lengkap' => $siswa->nama_lengkap,
+                'nama_panggilan' => $siswa->nama_panggilan,
             ];
         });
 

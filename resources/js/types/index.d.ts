@@ -63,6 +63,11 @@ export interface Siswa {
     nama_ayah?: string;
     nama_ibu?: string;
     nomor_telepon_wali?: string;
+    kelas_aktif?: {
+        id: number;
+        nama_lengkap: string;
+        tahun_ajaran: string;
+    };
     created_at: string;
     updated_at: string;
 }
